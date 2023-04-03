@@ -1,0 +1,129 @@
+MCP2515 CAN
+
+* (pg 18) . TXBnCTRL = TRANSMIT BUFFER n CONTROL REGISTER // ADDRESS: 30h, 40h, 50h
+* (pg 19) . TXRTSCTRL = TXnRTS PIN CONTROL AND STATUS REGISTER // ADDRESS: 0Dh
+* (pg 20) . TXBnSIDH: TRANSMIT BUFFER n STANDARD IDENTIFIER REGISTER HIGH // ADDRESS: 31h, 41h, 51h
+* (pg 20) . TXBnSIDL: TRANSMIT BUFFER n STANDARD IDENTIFIER REGISTER LOW // ADDRESS: 32h, 42h, 52h
+* (pg 21) . TXBnEID8: TRANSMIT BUFFER n EXTENDED IDENTIFIER 8 REGISTER HIGH // ADDRESS: 33h, 43h, 53h
+* (pg 21) . TXBnEID0: TRANSMIT BUFFER n EXTENDED IDENTIFIER 0 REGISTER LOW // ADDRESS: 34h, 44h, 54h
+* (pg 22) . TXBnDLC: TRANSMIT BUFFER n DATA LENGTH CODE REGISTER // ADDRESS: 35h, 45h, 55h
+* (pg 22) . TXBnDm: TRANSMIT BUFFER n DATA BYTE m REGISTER // ADDRESS: 36h-3Dh, 46h-4Dh, 56h-5Dh
+* (pg 27) . RXB0CTRL: RECEIVE BUFFER 0 CONTROL REGISTER // ADDRESS: 60h
+* (pg 27) . RXB0CTRL: RECEIVE BUFFER 0 CONTROL REGISTER // ADDRESS: 60h
+* (pg 28) . RXB1CTRL: RECEIVE BUFFER 1 CONTROL REGISTER // ADDRESS: 70h
+* (pg 29) . BFPCTRL: RXnBF PIN CONTROL AND STATUS REGISTER // ADDRESS: 0Ch
+* (pg 30) . RXBnSIDH: RECEIVE BUFFER n STANDARD IDENTIFIER REGISTER HIGH // ADDRESS: 61h, 71h
+* (pg 30) . RXBnSIDL: RECEIVE BUFFER n STANDARD IDENTIFIER REGISTER LOW // ADDRESS: 62h, 72h
+* (pg 31) . RXBnEID8: RECEIVE BUFFER n EXTENDED IDENTIFIER REGISTER HIGH // ADDRESS: 63h, 73h
+* (pg 31) . RXBnEID0: RECEIVE BUFFER n EXTENDED IDENTIFIER REGISTER LOW // ADDRESS: 64h, 74h
+* (pg 32) . RXBnDLC: RECEIVE BUFFER n DATA LENGTH CODE REGISTER // ADDRESS: 65h, 75h
+* (pg 32) . RXBnDm: RECEIVE BUFFER n DATA BYTE m REGISTER // ADDRESS: 66h-6Dh, 76h-7Dh
+* (pg 35) . RXFnSIDH: FILTER n STANDARD IDENTIFIER REGISTER HIGH // ADDRESS: 00h, 04h, 08h, 10h, 14h, 18h
+* (pg 35) . RXFnSIDL: FILTER n STANDARD IDENTIFIER REGISTER LOW // ADDRESS: 01h, 05h, 09h, 11h, 15h, 19h
+* (pg 36) . RXFnEID8: FILTER n EXTENDED IDENTIFIER REGISTER HIGH // ADDRESS: 02h, 06h, 0Ah, 12h, 16h, 1Ah
+* (pg 36) . RXFnEID0: FILTER n EXTENDED 1 REGISTER LOW // ADDRESS: 03h, 07h, 0Bh, 13h, 17h, 1Bh
+* (pg 37) . RXMnSIDH: MASK n STANDARD IDENTIFIER REGISTER HIGH // ADDRESS: 20h, 24h
+* (pg 37) . RXMnSIDL: MASK n STANDARD IDENTIFIER REGISTER LOW // ADDRESS: 21h, 25h
+* (pg 38) . RXMnEID8: MASK n EXTENDED IDENTIFIER REGISTER HIGH // ADDRESS: 22h, 26h
+* (pg 38) . RXMnEID0: MASK n EXTENDED IDENTIFIER REGISTER LOW // ADDRESS: 23h, 27h
+* (pg 44) . CNF1: CONFIGURATION REGISTER 1 // ADDRESS: 2Ah
+* (pg 44) . CNF2: CONFIGURATION REGISTER 2 // ADDRESS: 29h
+* (pg 45) . CNF3: CONFIGURATION REGISTER 3 // ADDRESS: 28h
+* (pg 49) . TEC: TRANSMIT ERROR COUNTER REGISTER // ADDRESS: 1Ch
+* (pg 49) . REC: RECEIVE ERROR COUNTER REGISTER // ADDRESS: 1Dh
+* (pg 50) . EFLG: ERROR FLAG REGISTER // ADDRESS: 2Dh
+* (pg 53) . CANINTE: CAN INTERRUPT ENABLE REGISTER // ADDRESS: 2Bh
+* (pg 54) . CANINTF: CAN INTERRUPT FLAG REGISTER // ADDRESS: 2Ch
+
+
+
+
+
+
+
+
+
+1. Transmit buffers
+-Implements 3 transmit buffers - eachs occupies 14 bytes of SRAM
+--first byte TXBnCTRL is a control register associated with the message buffers
+--5 bytes are used to hold the Standard / Extended IDs and other message info
+--the last 8 bytes are for the 8 possible data bytes of the message to be transmitted
+--at a minimum, the TXBnSIDH, TXBnSIDL and TXBnDLC registers must be loaded.
+--if data bytes are present in the message, the TXBnDm registers must also be loaded.
+
+2. Initiating Transmission
+-In order to initiate the transmision, TXREQ bit (TXBnCTRL[3]) must be set for each buffer
+to be transmitted, as so:
+--Writing to the register via the SPI write command
+--Sendind the SPI RTS command
+--Setting the TXnRTS pin low for the particular transmit buffers that are to be sent
+-If transmision is initiated via the SPI interface, the TXREQ bit can be set at the same time as the
+TXPx priority bits
+--Once the transmission has completed successfully, the TXREQ bit will be cleared, 
+the TXnIF bit (CANINTF) will be set and an interrupt will be generated
+if the TXnIE bit (CANINTE) is set
+-If the message started to transmit but encountered an error condition, the TXERR(TXBnCTRL[4])
+and MERRF bits (CANINTF[7]) will be set, and an interrupt will be generated on the INT pin if the
+MERRE bit (CANINTE[7]) is set
+-If the message is lost, arbitration at the MLOA bit (TXBnCTRL[5]) will be set
+
+3. TXnRTS Pins
+-input pins that can be configured as:
+--Request-To-Send inputs, which provide an alternative mean of initiating the trnasmision of a message
+--Standard digital inputs
+---Configuration and control of these pins is accomplished using the TXRTSCTRL register
+--If configured to operate as a Request-to-Send pin, the pin is mapped into the
+respective TXREQ bit (TXBnCTRL[3]) for the transmit buffer
+
+4. Message Reception
+-MCP2515 includes 2 full receive buffers (RXB0 & RXB1) wiith multiple acceptance filters for each
+--MAB : Message Receive Buffer receives the next message from the bus. It assemblies all the messages.
+---This messages are transmitted to RXBn buffers if the acceptance criteria is OK.
+-RXB0, RXB1 can receive a complete message from the protocol engine via MAB.
+4.1 Receive Flags / Interrupts
+-When a message is moved into one of receive buffers, the appropiate RXnIF bit (CANINTF) is set.
+If the RXnIF bit is set, an interrupt will be generated on the INT pin to indicate that a valid message
+has been received. In addition, the associated RXnBF oin will drive low if configured as a receive buffer
+full pin.
+
+4.2 Receive Priority
+-RXB0, the higher priority buffer, has one mask and two message acceptance filters
+associated with it. The received message is applied to the mask and
+filters for RXB0 first.
+-RXB1 is the lower priority buffer, with one mask and four acceptance
+filters associated with it.
+--In addition to the message being applied to the RXB0 mask and filters first,
+the lower number of acceptance filters makes the match on RXB0 more restrictive and
+implies a higher priority for that buffer.
+-When a message is received, the RXBnCTRL[3:0] register bits will indicate
+the acceptance filter number that enabled reception and whether the received message
+is a Remote Transfer Request
+4.3 Message Acceptance Filters and Masks
+-The message acceptance filters and masks are used to determine if a message in the
+Message Assembly Buffer should be loaded into either of the receive buffers.
+--Once a valid message has been received into the MAB, the identifier fields of the
+message are compared to the filter values. If there is a match, that message
+will be loaded into the appropriate receive buffer.
+---When receiving standard data frames (11-bit identifier), the MCP2515 automatically
+applies 16 bits of masks and filters, normally associated with Extended
+Identifiers, to the first 16 bits of the data field. (More at pg. 33)
+
+5.  /* Bit Timing */			 pg. 39
+	/* Time Quantum */
+	/* Nominal Bit Time */
+	/* Oscillator Tolerance */
+
+6. Error Detection				 pg. 47
+-CRC Error (Cyclic Redundancy Check) transmited in the CRC field
+--If mismatch is detected, an error frame is generated
+-Acknowledge Error
+-Form Error
+-Bit Error
+-Stuff Error
+-Error States
+-Error Modes and Error Counters
+
+7. Interrupts : 8 sources of interrupts 	pg. 51
+-CANINTE register
+--contains the individual interrupt enable bits for each interrupt source
+---When an interrupt occurs, the INT pin is driven low
